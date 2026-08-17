@@ -52,7 +52,9 @@ jobs:
             libsdl3-dev libopus-dev
 
       - name: Apply Nextendo phase 1
-        run: python3 tools/nextendo/apply_phase1.py .
+        run: |
+          python3 tools/nextendo/apply_phase1.py .
+          python3 tools/nextendo/apply_cli_lifecycle_fix.py .
 
       - name: Configure headless core
         run: |
@@ -114,7 +116,9 @@ jobs:
             boost sdl3 opus
 
       - name: Apply Nextendo phase 1
-        run: python tools/nextendo/apply_phase1.py .
+        run: |
+          python tools/nextendo/apply_phase1.py .
+          python tools/nextendo/apply_cli_lifecycle_fix.py .
 
       - name: Configure headless core
         run: |
@@ -173,7 +177,9 @@ jobs:
 
       - name: Apply Nextendo phase 1
         shell: pwsh
-        run: python tools/nextendo/apply_phase1.py .
+        run: |
+          python tools/nextendo/apply_phase1.py .
+          python tools/nextendo/apply_cli_lifecycle_fix.py .
 
       - name: Configure headless core
         shell: pwsh
