@@ -160,6 +160,17 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: '& ./tools/windows/install-vulkan-sdk.ps1'
+
+      - name: Verify Vulkan SDK tools
+        shell: pwsh
+        run: |
+          Write-Host "VULKAN_SDK=$env:VULKAN_SDK"
+          Get-Command glslangValidator
+          glslangValidator --version
+
       - name: Apply Nextendo phase 1
         shell: pwsh
         run: python tools/nextendo/apply_phase1.py .
