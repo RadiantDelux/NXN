@@ -110,7 +110,7 @@ jobs:
             base-devel cmake gcc glslang libtool nasm ninja pkgconf python \
             fmt lz4 nlohmann-json zstd openssl zlib ffmpeg libva libvdpau \
             vulkan-headers vulkan-icd-loader spirv-headers spirv-tools \
-            xbyak boost sdl3 opus
+            boost sdl3 opus
 
       - name: Apply Nextendo phase 1
         run: python tools/nextendo/apply_phase1.py .
