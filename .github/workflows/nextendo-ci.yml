@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  core-linux:
+  core-debian:
     name: Core / Linux (Debian 13)
     runs-on: ubuntu-latest
     container:
@@ -76,6 +76,118 @@ jobs:
       - name: Build core
         run: cmake --build build --parallel 2
 
-      - name: Show binaries
-        if: always()
-        run: find build/bin -maxdepth 2 -type f -print 2>/dev/null || true
+      - name: Upload Debian build
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextendo-debian-headless
+          path: build/bin/**
+          if-no-files-found: warn
+
+  core-arch:
+    name: Core / Linux (Arch Linux)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+    steps:
+      - name: Install bootstrap tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm ca-certificates git curl tar xz
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          pacman -S --needed --noconfirm \
+            base-devel cmake gcc glslang libtool nasm ninja pkgconf python \
+            fmt lz4 nlohmann-json zstd openssl zlib ffmpeg libva libvdpau \
+            vulkan-headers vulkan-icd-loader spirv-headers spirv-tools \
+            xbyak boost sdl3 opus
+
+      - name: Apply Nextendo phase 1
+        run: python tools/nextendo/apply_phase1.py .
+
+      - name: Configure headless core
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_QT=OFF \
+            -DYUZU_CMD=ON \
+            -DYUZU_ROOM=OFF \
+            -DYUZU_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DENABLE_CUBEB=OFF \
+            -DENABLE_LIBUSB=OFF \
+            -DENABLE_OPENGL=OFF \
+            -DENABLE_WEB_SERVICE=OFF \
+            -DENABLE_UPDATE_CHECKER=OFF \
+            -DUSE_DISCORD_PRESENCE=OFF \
+            -DYUZU_DISABLE_LLVM=ON \
+            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
+            -DENABLE_WERROR=OFF
+
+      - name: Build core
+        run: cmake --build build --parallel 2
+
+      - name: Upload Arch build
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextendo-arch-headless
+          path: build/bin/**
+          if-no-files-found: warn
+
+  core-windows:
+    name: Core / Windows (MSVC x64)
+    runs-on: windows-latest
+
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply Nextendo phase 1
+        shell: pwsh
+        run: python tools/nextendo/apply_phase1.py .
+
+      - name: Configure headless core
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            -DENABLE_QT=OFF `
+            -DYUZU_CMD=ON `
+            -DYUZU_ROOM=OFF `
+            -DYUZU_TESTS=OFF `
+            -DBUILD_TESTING=OFF `
+            -DENABLE_CUBEB=OFF `
+            -DENABLE_LIBUSB=OFF `
+            -DENABLE_OPENGL=OFF `
+            -DENABLE_WEB_SERVICE=OFF `
+            -DENABLE_UPDATE_CHECKER=OFF `
+            -DUSE_DISCORD_PRESENCE=OFF `
+            -DYUZU_DISABLE_LLVM=ON `
+            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON `
+            -DENABLE_WERROR=OFF
+
+      - name: Build core
+        shell: pwsh
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextendo-windows-headless
+          path: build/bin/**
+          if-no-files-found: warn
