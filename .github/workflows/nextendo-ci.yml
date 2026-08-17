@@ -51,6 +51,9 @@ jobs:
             libxbyak-dev libboost-dev libboost-fiber-dev libboost-context-dev \
             libsdl3-dev libopus-dev
 
+      - name: Apply Nextendo phase 1
+        run: python3 tools/nextendo/apply_phase1.py .
+
       - name: Configure headless core
         run: |
           cmake -S . -B build -G Ninja \
