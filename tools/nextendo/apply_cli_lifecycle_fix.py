@@ -10,6 +10,13 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> str:
+    count = text.count(old)
+    if count != expected:
+        raise RuntimeError(f"{label}: expected exactly {expected} anchors, found {count}")
+    return text.replace(old, new)
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     path = root / "src/yuzu_cmd/yuzu.cpp"
@@ -18,8 +25,8 @@ def main() -> int:
     text = replace_once(
         text,
         "struct SdlState {\n    Core::System system{};\n    std::unique_ptr<EmuWindow_SDL3> emu_window;\n};",
-        "struct SdlState {\n    Core::System system{};\n    std::unique_ptr<EmuWindow_SDL3> emu_window;\n    bool system_initialized = false;\n};",
-        "SdlState initialization flag",
+        "struct SdlState {\n    Core::System system{};\n    std::unique_ptr<InputCommon::InputSubsystem> input_subsystem;\n    std::unique_ptr<EmuWindow_SDL3> emu_window;\n    bool system_initialized = false;\n    bool network_initialized = false;\n};",
+        "SdlState lifecycle fields",
     )
 
     text = replace_once(
@@ -45,20 +52,28 @@ def main() -> int:
 
     text = replace_once(
         text,
-        "    state->system.Initialize();\n\n    InputCommon::InputSubsystem input_subsystem{};",
-        "    state->system.Initialize();\n    state->system_initialized = true;\n\n    InputCommon::InputSubsystem input_subsystem{};",
-        "system initialized marker",
+        "    if (filepath.empty()) {\n        LOG_CRITICAL(Frontend, \"Failed to load ROM: No ROM specified\");\n        return SDL_APP_FAILURE;\n    }\n\n    state->system.Initialize();\n\n    InputCommon::InputSubsystem input_subsystem{};",
+        "    if (filepath.empty()) {\n        LOG_CRITICAL(Frontend, \"Failed to load ROM: No ROM specified\");\n        return SDL_APP_FAILURE;\n    }\n\n    if (!Network::Init()) {\n        LOG_CRITICAL(Frontend, \"Failed to initialize network subsystem\");\n        return SDL_APP_FAILURE;\n    }\n    state->network_initialized = true;\n\n    state->system.Initialize();\n    state->system_initialized = true;\n\n    state->input_subsystem = std::make_unique<InputCommon::InputSubsystem>();",
+        "network and system initialization",
+    )
+
+    text = replace_exact(
+        text,
+        "&input_subsystem, state->system, fullscreen",
+        "state->input_subsystem.get(), state->system, fullscreen",
+        3,
+        "persistent input subsystem references",
     )
 
     text = replace_once(
         text,
         "extern \"C\" void SDL_AppQuit(void *appstate, SDL_AppResult result) {\n    SdlState *state = (SdlState *)appstate;\n    state->system.DetachDebugger();\n    void(state->system.Pause());\n    state->system.ShutdownMainProcess();\n    delete state;\n}",
-        "extern \"C\" void SDL_AppQuit(void *appstate, SDL_AppResult result) {\n    SdlState *state = (SdlState *)appstate;\n    if (state == nullptr) {\n        return;\n    }\n    if (state->system_initialized) {\n        state->system.DetachDebugger();\n        void(state->system.Pause());\n        state->system.ShutdownMainProcess();\n    }\n    delete state;\n}",
+        "extern \"C\" void SDL_AppQuit(void *appstate, SDL_AppResult result) {\n    SdlState *state = (SdlState *)appstate;\n    if (state == nullptr) {\n        return;\n    }\n    if (state->system_initialized) {\n        state->system.DetachDebugger();\n        void(state->system.Pause());\n        state->system.ShutdownMainProcess();\n    }\n    if (state->network_initialized) {\n        Network::Shutdown();\n    }\n    delete state;\n}",
         "safe SDL cleanup",
     )
 
     path.write_text(text, encoding="utf-8")
-    print("patched src/yuzu_cmd/yuzu.cpp (SDL lifecycle)")
+    print("patched src/yuzu_cmd/yuzu.cpp (SDL/network/input lifecycle)")
     return 0
 
 
