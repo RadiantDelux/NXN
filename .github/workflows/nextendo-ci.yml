@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  core-debian:
-    name: Core / Linux (Debian 13)
+  gui-debian:
+    name: GUI / Linux (Debian 13)
     runs-on: ubuntu-latest
     container:
       image: debian:13
@@ -49,19 +49,22 @@ jobs:
             libavfilter-dev libavcodec-dev libswscale-dev libva-dev libvdpau-dev \
             libvulkan-dev spirv-tools spirv-headers vulkan-utility-libraries-dev \
             libxbyak-dev libboost-dev libboost-fiber-dev libboost-context-dev \
-            libsdl3-dev libopus-dev
+            libsdl3-dev libopus-dev \
+            libglu1-mesa-dev libhidapi-dev libpulse-dev libudev-dev mesa-common-dev \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xkb1 libxext-dev libxkbcommon-x11-0 \
+            qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-charts-dev
 
       - name: Apply Nextendo phase 1
-        run: |
-          python3 tools/nextendo/apply_phase1.py .
-          python3 tools/nextendo/apply_cli_lifecycle_fix.py .
+        run: python3 tools/nextendo/apply_phase1.py .
 
-      - name: Configure headless core
+      - name: Configure GUI
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_QT=OFF \
-            -DYUZU_CMD=ON \
+            -DENABLE_QT=ON \
+            -DYUZU_USE_BUNDLED_QT=OFF \
+            -DYUZU_CMD=OFF \
             -DYUZU_ROOM=OFF \
             -DYUZU_TESTS=OFF \
             -DBUILD_TESTING=OFF \
@@ -76,18 +79,18 @@ jobs:
             -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
             -DENABLE_WERROR=OFF
 
-      - name: Build core
-        run: cmake --build build --parallel 2
+      - name: Build GUI
+        run: cmake --build build --target eden --parallel 2
 
-      - name: Upload Debian build
+      - name: Upload Debian GUI
         uses: actions/upload-artifact@v4
         with:
-          name: nextendo-debian-headless
+          name: nextendo-debian-gui
           path: build/bin/**
-          if-no-files-found: warn
+          if-no-files-found: error
 
-  core-arch:
-    name: Core / Linux (Arch Linux)
+  gui-arch:
+    name: GUI / Linux (Arch Linux)
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
@@ -113,19 +116,19 @@ jobs:
             base-devel cmake gcc glslang libtool nasm ninja pkgconf python \
             fmt lz4 nlohmann-json zstd openssl zlib ffmpeg libva libvdpau \
             vulkan-headers vulkan-icd-loader spirv-headers spirv-tools \
-            boost sdl3 opus
+            boost sdl3 opus \
+            qt6-base qt6-multimedia qt6-charts qt6-tools
 
       - name: Apply Nextendo phase 1
-        run: |
-          python tools/nextendo/apply_phase1.py .
-          python tools/nextendo/apply_cli_lifecycle_fix.py .
+        run: python tools/nextendo/apply_phase1.py .
 
-      - name: Configure headless core
+      - name: Configure GUI
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_QT=OFF \
-            -DYUZU_CMD=ON \
+            -DENABLE_QT=ON \
+            -DYUZU_USE_BUNDLED_QT=OFF \
+            -DYUZU_CMD=OFF \
             -DYUZU_ROOM=OFF \
             -DYUZU_TESTS=OFF \
             -DBUILD_TESTING=OFF \
@@ -140,18 +143,18 @@ jobs:
             -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
             -DENABLE_WERROR=OFF
 
-      - name: Build core
-        run: cmake --build build --parallel 2
+      - name: Build GUI
+        run: cmake --build build --target eden --parallel 2
 
-      - name: Upload Arch build
+      - name: Upload Arch GUI
         uses: actions/upload-artifact@v4
         with:
-          name: nextendo-arch-headless
+          name: nextendo-arch-gui
           path: build/bin/**
-          if-no-files-found: warn
+          if-no-files-found: error
 
-  core-windows:
-    name: Core / Windows (MSVC x64)
+  gui-windows:
+    name: GUI / Windows (MSVC x64)
     runs-on: windows-latest
 
     env:
@@ -177,16 +180,15 @@ jobs:
 
       - name: Apply Nextendo phase 1
         shell: pwsh
-        run: |
-          python tools/nextendo/apply_phase1.py .
-          python tools/nextendo/apply_cli_lifecycle_fix.py .
+        run: python tools/nextendo/apply_phase1.py .
 
-      - name: Configure headless core
+      - name: Configure GUI
         shell: pwsh
         run: |
           cmake -S . -B build -A x64 `
-            -DENABLE_QT=OFF `
-            -DYUZU_CMD=ON `
+            -DENABLE_QT=ON `
+            -DYUZU_USE_BUNDLED_QT=ON `
+            -DYUZU_CMD=OFF `
             -DYUZU_ROOM=OFF `
             -DYUZU_TESTS=OFF `
             -DBUILD_TESTING=OFF `
@@ -201,13 +203,13 @@ jobs:
             -DVulkanUtilityLibraries_FORCE_BUNDLED=ON `
             -DENABLE_WERROR=OFF
 
-      - name: Build core
+      - name: Build GUI
         shell: pwsh
-        run: cmake --build build --config Release --parallel 2
+        run: cmake --build build --target eden --config Release --parallel 2
 
-      - name: Upload Windows build
+      - name: Upload Windows GUI
         uses: actions/upload-artifact@v4
         with:
-          name: nextendo-windows-headless
+          name: nextendo-windows-gui
           path: build/bin/**
-          if-no-files-found: warn
+          if-no-files-found: error
