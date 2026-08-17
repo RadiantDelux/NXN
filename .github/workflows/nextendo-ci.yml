@@ -70,6 +70,7 @@ jobs:
             -DENABLE_UPDATE_CHECKER=OFF \
             -DUSE_DISCORD_PRESENCE=OFF \
             -DYUZU_DISABLE_LLVM=ON \
+            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
             -DENABLE_WERROR=OFF
 
       - name: Build core
