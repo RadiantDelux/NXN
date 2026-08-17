@@ -1,0 +1,215 @@
+name: Nextendo CI
+
+on:
+  push:
+    branches:
+      - agent/nextendo-port
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextendo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gui-debian:
+    name: GUI / Linux (Debian 13)
+    runs-on: ubuntu-latest
+    container:
+      image: debian:13
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+    steps:
+      - name: Install bootstrap tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git curl tar xz-utils
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf build-essential cmake gcc g++ git glslang-tools libtool nasm ninja-build \
+            pkg-config python3 \
+            libfmt-dev liblz4-dev nlohmann-json3-dev libzstd-dev libssl-dev zlib1g-dev \
+            libavfilter-dev libavcodec-dev libswscale-dev libva-dev libvdpau-dev \
+            libvulkan-dev spirv-tools spirv-headers vulkan-utility-libraries-dev \
+            libxbyak-dev libboost-dev libboost-fiber-dev libboost-context-dev \
+            libsdl3-dev libopus-dev \
+            libglu1-mesa-dev libhidapi-dev libpulse-dev libudev-dev mesa-common-dev \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xkb1 libxext-dev libxkbcommon-x11-0 \
+            qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-charts-dev
+
+      - name: Apply Nextendo phase 1
+        run: python3 tools/nextendo/apply_phase1.py .
+
+      - name: Configure GUI
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_QT=ON \
+            -DYUZU_USE_BUNDLED_QT=OFF \
+            -DYUZU_CMD=OFF \
+            -DYUZU_ROOM=OFF \
+            -DYUZU_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DENABLE_CUBEB=OFF \
+            -DENABLE_LIBUSB=OFF \
+            -DENABLE_OPENGL=OFF \
+            -DENABLE_WEB_SERVICE=OFF \
+            -DENABLE_UPDATE_CHECKER=OFF \
+            -DUSE_DISCORD_PRESENCE=OFF \
+            -DYUZU_DISABLE_LLVM=ON \
+            -DVulkanHeaders_FORCE_BUNDLED=ON \
+            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
+            -DENABLE_WERROR=OFF
+
+      - name: Build GUI
+        run: cmake --build build --target eden --parallel 2
+
+      - name: Upload Debian GUI
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextendo-debian-gui
+          path: build/bin/**
+          if-no-files-found: error
+
+  gui-arch:
+    name: GUI / Linux (Arch Linux)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+    steps:
+      - name: Install bootstrap tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm ca-certificates git curl tar xz
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          pacman -S --needed --noconfirm \
+            base-devel cmake gcc glslang libtool nasm ninja pkgconf python \
+            fmt lz4 nlohmann-json zstd openssl zlib ffmpeg libva libvdpau \
+            vulkan-headers vulkan-icd-loader spirv-headers spirv-tools \
+            boost sdl3 opus \
+            qt6-base qt6-multimedia qt6-charts qt6-tools
+
+      - name: Apply Nextendo phase 1
+        run: python tools/nextendo/apply_phase1.py .
+
+      - name: Configure GUI
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_QT=ON \
+            -DYUZU_USE_BUNDLED_QT=OFF \
+            -DYUZU_CMD=OFF \
+            -DYUZU_ROOM=OFF \
+            -DYUZU_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DENABLE_CUBEB=OFF \
+            -DENABLE_LIBUSB=OFF \
+            -DENABLE_OPENGL=OFF \
+            -DENABLE_WEB_SERVICE=OFF \
+            -DENABLE_UPDATE_CHECKER=OFF \
+            -DUSE_DISCORD_PRESENCE=OFF \
+            -DYUZU_DISABLE_LLVM=ON \
+            -DVulkanHeaders_FORCE_BUNDLED=ON \
+            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
+            -DENABLE_WERROR=OFF
+
+      - name: Build GUI
+        run: cmake --build build --target eden --parallel 2
+
+      - name: Upload Arch GUI
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextendo-arch-gui
+          path: build/bin/**
+          if-no-files-found: error
+
+  gui-windows:
+    name: GUI / Windows (MSVC x64)
+    runs-on: windows-latest
+
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: '& ./tools/windows/install-vulkan-sdk.ps1'
+
+      - name: Verify Vulkan SDK tools
+        shell: pwsh
+        run: |
+          Write-Host "VULKAN_SDK=$env:VULKAN_SDK"
+          Get-Command glslangValidator
+          glslangValidator --version
+
+      - name: Apply Nextendo phase 1
+        shell: pwsh
+        run: python tools/nextendo/apply_phase1.py .
+
+      - name: Configure GUI
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            -DENABLE_QT=ON `
+            -DYUZU_USE_BUNDLED_QT=ON `
+            -DYUZU_CMD=OFF `
+            -DYUZU_ROOM=OFF `
+            -DYUZU_TESTS=OFF `
+            -DBUILD_TESTING=OFF `
+            -DENABLE_CUBEB=OFF `
+            -DENABLE_LIBUSB=OFF `
+            -DENABLE_OPENGL=OFF `
+            -DENABLE_WEB_SERVICE=OFF `
+            -DENABLE_UPDATE_CHECKER=OFF `
+            -DUSE_DISCORD_PRESENCE=OFF `
+            -DYUZU_DISABLE_LLVM=ON `
+            -DVulkanHeaders_FORCE_BUNDLED=ON `
+            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON `
+            -DENABLE_WERROR=OFF
+
+      - name: Build GUI
+        shell: pwsh
+        run: cmake --build build --target eden --config Release --parallel 2
+
+      - name: Upload Windows GUI
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextendo-windows-gui
+          path: build/bin/**
+          if-no-files-found: error
