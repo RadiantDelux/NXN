@@ -1,0 +1,77 @@
+name: Nextendo CI
+
+on:
+  push:
+    branches:
+      - agent/nextendo-port
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextendo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-linux:
+    name: Core / Linux (Debian 13)
+    runs-on: ubuntu-latest
+    container:
+      image: debian:13
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+    steps:
+      - name: Install bootstrap tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git curl tar xz-utils
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf build-essential cmake gcc g++ git glslang-tools libtool nasm ninja-build \
+            pkg-config python3 \
+            libfmt-dev liblz4-dev nlohmann-json3-dev libzstd-dev libssl-dev zlib1g-dev \
+            libavfilter-dev libavcodec-dev libswscale-dev libva-dev libvdpau-dev \
+            libvulkan-dev spirv-tools spirv-headers vulkan-utility-libraries-dev \
+            libxbyak-dev libboost-dev libboost-fiber-dev libboost-context-dev \
+            libsdl3-dev libopus-dev
+
+      - name: Configure headless core
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_QT=OFF \
+            -DYUZU_CMD=ON \
+            -DYUZU_ROOM=OFF \
+            -DYUZU_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DENABLE_CUBEB=OFF \
+            -DENABLE_LIBUSB=OFF \
+            -DENABLE_OPENGL=OFF \
+            -DENABLE_WEB_SERVICE=OFF \
+            -DENABLE_UPDATE_CHECKER=OFF \
+            -DUSE_DISCORD_PRESENCE=OFF \
+            -DYUZU_DISABLE_LLVM=ON \
+            -DENABLE_WERROR=OFF
+
+      - name: Build core
+        run: cmake --build build --parallel 2
+
+      - name: Show binaries
+        if: always()
+        run: find build/bin -maxdepth 2 -type f -print 2>/dev/null || true
